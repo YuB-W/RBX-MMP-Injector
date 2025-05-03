@@ -39,6 +39,10 @@ By using this, you agree that you are solely responsible for any actions taken.
 
 ---
 
+## YuB-X API
+https://github.com/YuB-W/YuB-X-roblox-api
+
+
 ## 💬 Credits
 
 - 🧠 YuB-X — [https://yub-x.com](https://yub-x.com)  
