@@ -700,38 +700,40 @@ namespace Types {
 };
 
 
-// Hyprion Version: version-ff05edc617954c5b
-
 #define RELOC_FLAG(RelInfo) (((RelInfo) >> 12) == IMAGE_REL_BASED_DIR64)
-#define CFG_IDENTITY            0xBD8CCB27
-#define CFG_PAGE_HASH_KEY       0xDBDB3027
-#define CFG_VALIDATION_XOR      0x7E
+#define CFG_IDENTITY            0xB3C93940 
+#define CFG_PAGE_HASH_KEY       0xA6FC287E 
+#define CFG_VALIDATION_XOR      0xF6       
 
 #define HashPage(Page) \
-    ((((uintptr_t)(Page) >> 0xC) ^ CFG_PAGE_HASH_KEY))
+    ((((uintptr_t)(Page) >> 12) ^ CFG_PAGE_HASH_KEY))
 
 #define ValidationByte(Page) \
-    ((((uintptr_t)(Page) >> 0x2C) ^ CFG_VALIDATION_XOR))
+    ((((uintptr_t)(Page) >> 44) ^ CFG_VALIDATION_XOR))
 
 #define BatchWhitelistRegion(Start, Size)                                         \
-{                                                                             \
-    uintptr_t AlignedStart = (uintptr_t)(Start) & ~0xFFFULL;                 \
-    uintptr_t AlignedEnd = ((uintptr_t)(Start) + (Size) + 0xFFF) & ~0xFFFULL; \
-    uint32_t Identity = CFG_IDENTITY;                                        \
-    for (uintptr_t Page = AlignedStart; Page < AlignedEnd; Page += 0x1000) { \
-        struct {                                                             \
-            uint32_t page_hash;                                              \
-            uint8_t validation;                                              \
-        } PageEntry;                                                         \
-        PageEntry.page_hash = HashPage(Page);                                \
-        PageEntry.validation = ValidationByte(Page);                         \
-        insert_set(memory_map, &Identity, &PageEntry);                       \
-    }                                                                         \
+{                                                                                 \
+    uintptr_t AlignedStart = (uintptr_t)(Start) & ~0xFFFULL;                      \
+    uintptr_t AlignedEnd = ((uintptr_t)(Start) + (Size) + 0xFFF) & ~0xFFFULL;     \
+    uint32_t Identity = CFG_IDENTITY;                                             \
+    for (uintptr_t Page = AlignedStart; Page < AlignedEnd; Page += 0x1000) {      \
+        struct {                                                                  \
+            uint32_t page_hash;                                                   \
+            uint8_t validation;                                                   \
+        } PageEntry;                                                              \
+        PageEntry.page_hash = HashPage(Page);                                     \
+        PageEntry.validation = ValidationByte(Page);                              \
+        insert_set(memory_map, &Identity, &PageEntry);                            \
+    }                                                                             \
 }
 
-
 SCF_WRAP_START;
-int32_t __stdcall NtQuerySystemInformation(uint32_t SystemInformationClass, void* SystemInformation, ULONG SystemInformationLength, ULONG* ReturnLength) {
+int32_t __stdcall NtQuerySystemInformation(
+	uint32_t SystemInformationClass,
+	void* SystemInformation,
+	ULONG SystemInformationLength,
+	ULONG* ReturnLength
+) {
 	SCF_START;
 
 	FunctionData* DetourPage = reinterpret_cast<FunctionData*>(Stack[0]);
@@ -744,47 +746,46 @@ int32_t __stdcall NtQuerySystemInformation(uint32_t SystemInformationClass, void
 	auto _GetModuleHandleA = reinterpret_cast<decltype(&GetModuleHandleA)>(Stack[7]);
 	auto _LoadLibraryA = reinterpret_cast<decltype(&LoadLibraryA)>(Stack[8]);
 	uintptr_t bitmap = reinterpret_cast<uintptr_t>(Stack[10]);
+	using RtlAddFunctionTable_t = BOOL(WINAPI*)(PRUNTIME_FUNCTION, DWORD, DWORD64);
+	auto _RtlAddFunctionTable = reinterpret_cast<RtlAddFunctionTable_t>(Stack[11]);
+
 	auto* Dos = reinterpret_cast<IMAGE_DOS_HEADER*>(Base);
 	auto* Nt = reinterpret_cast<IMAGE_NT_HEADERS*>(Base + Dos->e_lfanew);
-
 	auto* Opt = &Nt->OptionalHeader;
 	auto Size = Opt->SizeOfImage;
-
-
 
 	if (*Status == Injector::HOOK_IDLE) {
 		*Status = Injector::HOOK_RUNNING;
 
 		BatchWhitelistRegion(DetourPage->Page, DetourPage->Size);
-
-		auto UDetourPage = (uintptr_t)(DetourPage->Page);
-		UDetourPage &= -0x10000;
+		auto UDetourPage = (uintptr_t)(DetourPage->Page) & ~0xFFFF;
 		for (auto pg = UDetourPage; pg < UDetourPage + DetourPage->Size; pg += 0x1000) {
-			*reinterpret_cast<std::uint32_t*>(*reinterpret_cast<std::uintptr_t*>(bitmap) + (pg >> 0x13)) |= 1 << ((pg >> 0x10 & 7) % 0x20);
+			*reinterpret_cast<std::uint32_t*>(*reinterpret_cast<std::uintptr_t*>(bitmap) + (pg >> 0x13)) |=
+				1 << ((pg >> 0x10 & 7) % 0x20);
 		}
 
-
 		BatchWhitelistRegion(Base, Size);
-
-		Base &= -0x10000;
+		Base &= ~0xFFFF;
 		for (auto pg = Base; pg < Base + Size; pg += 0x1000) {
-			*reinterpret_cast<std::uint32_t*>(*reinterpret_cast<std::uintptr_t*>(bitmap) + (pg >> 0x13)) |= 1 << ((pg >> 0x10 & 7) % 0x20);
+			*reinterpret_cast<std::uint32_t*>(*reinterpret_cast<std::uintptr_t*>(bitmap) + (pg >> 0x13)) |=
+				1 << ((pg >> 0x10 & 7) % 0x20);
 		}
 
 		uintptr_t LocationDelta = Base - Opt->ImageBase;
 		if (LocationDelta) {
-			IMAGE_DATA_DIRECTORY RelocDir = Opt->DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC];
+			auto& RelocDir = Opt->DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC];
 			if (RelocDir.Size) {
 				auto* pRelocData = reinterpret_cast<IMAGE_BASE_RELOCATION*>(Base + RelocDir.VirtualAddress);
 				const auto* pRelocEnd = reinterpret_cast<IMAGE_BASE_RELOCATION*>(reinterpret_cast<uintptr_t>(pRelocData) + RelocDir.Size);
-				while (pRelocData < pRelocEnd && pRelocData->SizeOfBlock) {
-					UINT AmountOfEntries = (pRelocData->SizeOfBlock - sizeof(IMAGE_BASE_RELOCATION)) / sizeof(WORD);
-					WORD* pRelativeInfo = reinterpret_cast<WORD*>(pRelocData + 1);
 
-					for (UINT i = 0; i != AmountOfEntries; ++i, ++pRelativeInfo) {
-						if (RELOC_FLAG(*pRelativeInfo)) {
-							UINT_PTR* pPatch = reinterpret_cast<UINT_PTR*>(Base + pRelocData->VirtualAddress + ((*pRelativeInfo) & 0xFFF));
-							*pPatch += LocationDelta;
+				while (pRelocData < pRelocEnd && pRelocData->SizeOfBlock) {
+					UINT EntryCount = (pRelocData->SizeOfBlock - sizeof(IMAGE_BASE_RELOCATION)) / sizeof(WORD);
+					WORD* Relocs = reinterpret_cast<WORD*>(pRelocData + 1);
+
+					for (UINT i = 0; i < EntryCount; ++i, ++Relocs) {
+						if (RELOC_FLAG(*Relocs)) {
+							UINT_PTR* Patch = reinterpret_cast<UINT_PTR*>(Base + pRelocData->VirtualAddress + ((*Relocs) & 0xFFF));
+							*Patch += LocationDelta;
 						}
 					}
 					pRelocData = reinterpret_cast<IMAGE_BASE_RELOCATION*>(reinterpret_cast<BYTE*>(pRelocData) + pRelocData->SizeOfBlock);
@@ -792,62 +793,73 @@ int32_t __stdcall NtQuerySystemInformation(uint32_t SystemInformationClass, void
 			}
 		}
 
-		IMAGE_DATA_DIRECTORY ImportDir = Opt->DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
+		auto& sehDir = Opt->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXCEPTION];
+		if (sehDir.Size && sehDir.VirtualAddress) {
+			auto* pdata = reinterpret_cast<PRUNTIME_FUNCTION>(Base + sehDir.VirtualAddress);
+			size_t count = sehDir.Size / sizeof(RUNTIME_FUNCTION);
+
+			for (size_t i = 0; i < count; ++i) {
+				pdata[i].BeginAddress += (DWORD)(Base - Opt->ImageBase);
+				pdata[i].EndAddress += (DWORD)(Base - Opt->ImageBase);
+				if (pdata[i].UnwindData < Size)
+					pdata[i].UnwindData += (DWORD)(Base - Opt->ImageBase);
+			}
+			_RtlAddFunctionTable(pdata, (DWORD)count, Base);
+		}
+
+		auto& ImportDir = Opt->DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
 		if (ImportDir.Size) {
-			auto* ImportDescriptor = reinterpret_cast<IMAGE_IMPORT_DESCRIPTOR*>(Base + ImportDir.VirtualAddress);
-			while (ImportDescriptor->Name) {
-				char* ModuleName = reinterpret_cast<char*>(Base + ImportDescriptor->Name);
-				HMODULE Module = _GetModuleHandleA(ModuleName);
+			auto* ImportDesc = reinterpret_cast<IMAGE_IMPORT_DESCRIPTOR*>(Base + ImportDir.VirtualAddress);
+			while (ImportDesc->Name) {
+				char* ModName = reinterpret_cast<char*>(Base + ImportDesc->Name);
+				HMODULE Mod = _GetModuleHandleA(ModName);
+				if (!Mod) Mod = _LoadLibraryA(ModName);
+				if (!Mod) { ++ImportDesc; continue; }
 
-				if (!Module) {
-					Module = _LoadLibraryA(ModuleName);
-					if (!Module) {
-						++ImportDescriptor;
-						continue;
-					}
-				}
+				auto* Dos = reinterpret_cast<IMAGE_DOS_HEADER*>(Mod);
+				auto* Nt = reinterpret_cast<IMAGE_NT_HEADERS*>((uintptr_t)Mod + Dos->e_lfanew);
+				auto SizeOfImage = Nt->OptionalHeader.SizeOfImage;
+				BatchWhitelistRegion((uintptr_t)Mod, SizeOfImage);
 
-				auto* Dos = reinterpret_cast<IMAGE_DOS_HEADER*>(Module);
-				auto* Nt = reinterpret_cast<IMAGE_NT_HEADERS*>((uintptr_t)Module + Dos->e_lfanew);
-				size_t SizeOfImage = Nt->OptionalHeader.SizeOfImage;
+				uintptr_t* Thunk = reinterpret_cast<uintptr_t*>(Base + ImportDesc->OriginalFirstThunk);
+				uintptr_t* Func = reinterpret_cast<uintptr_t*>(Base + ImportDesc->FirstThunk);
+				if (!Thunk) Thunk = Func;
 
-				BatchWhitelistRegion((uintptr_t)Module, SizeOfImage);
-
-				uintptr_t* ThunkRefPtr = reinterpret_cast<uintptr_t*>(Base + ImportDescriptor->OriginalFirstThunk);
-				uintptr_t* FuncRefPtr = reinterpret_cast<uintptr_t*>(Base + ImportDescriptor->FirstThunk);
-
-				if (!ThunkRefPtr) {
-					ThunkRefPtr = FuncRefPtr;
-				}
-
-				uintptr_t ThunkRef;
-				while (ThunkRef = *ThunkRefPtr) {
-					if (IMAGE_SNAP_BY_ORDINAL(ThunkRef)) {
-						*FuncRefPtr = (uintptr_t)_GetProcAddress(Module, reinterpret_cast<char*>(ThunkRef & 0xFFFF));
+				while (*Thunk) {
+					if (IMAGE_SNAP_BY_ORDINAL(*Thunk)) {
+						*Func = (uintptr_t)_GetProcAddress(Mod, reinterpret_cast<char*>(*Thunk & 0xFFFF));
 					}
 					else {
-						IMAGE_IMPORT_BY_NAME* ImportData = reinterpret_cast<IMAGE_IMPORT_BY_NAME*>(Base + ThunkRef);
-						*FuncRefPtr = (uintptr_t)_GetProcAddress(Module, ImportData->Name);
+						auto* Import = reinterpret_cast<IMAGE_IMPORT_BY_NAME*>(Base + *Thunk);
+						*Func = (uintptr_t)_GetProcAddress(Mod, Import->Name);
 					}
-					++ThunkRefPtr;
-					++FuncRefPtr;
+					++Thunk; ++Func;
 				}
-				++ImportDescriptor;
+				++ImportDesc;
 			}
 		}
 
-		IMAGE_DATA_DIRECTORY TlsDir = Opt->DataDirectory[IMAGE_DIRECTORY_ENTRY_TLS];
+		auto& TlsDir = Opt->DataDirectory[IMAGE_DIRECTORY_ENTRY_TLS];
 		if (TlsDir.Size) {
-			auto* TlsData = reinterpret_cast<IMAGE_TLS_DIRECTORY*>(Base + TlsDir.VirtualAddress);
-			auto* CallbackArray = reinterpret_cast<PIMAGE_TLS_CALLBACK*>(TlsData->AddressOfCallBacks);
-			while (CallbackArray && *CallbackArray) {
-				PIMAGE_TLS_CALLBACK Callback = *CallbackArray;
-				Callback(reinterpret_cast<void*>(Base), DLL_PROCESS_ATTACH, nullptr);
+			auto* Tls = reinterpret_cast<IMAGE_TLS_DIRECTORY*>(Base + TlsDir.VirtualAddress);
+			if (Tls->AddressOfCallBacks) {
+				auto* Callbacks = reinterpret_cast<PIMAGE_TLS_CALLBACK*>(Tls->AddressOfCallBacks);
+				while (*Callbacks) {
+					(*Callbacks)((LPVOID)Base, DLL_PROCESS_ATTACH, nullptr);
+					++Callbacks;
+				}
 			}
 		}
 
-		auto DllMain = reinterpret_cast<int(__stdcall*)(HMODULE, DWORD, void*)>(Base + Opt->AddressOfEntryPoint);
-		DllMain(reinterpret_cast<HMODULE>(Base), DLL_PROCESS_ATTACH, nullptr);
+		__try {
+			auto Entry = reinterpret_cast<int(__stdcall*)(HMODULE, DWORD, void*)>(Base + Opt->AddressOfEntryPoint);
+			Entry(reinterpret_cast<HMODULE>(Base), DLL_PROCESS_ATTACH, nullptr);
+		}
+		__except (EXCEPTION_EXECUTE_HANDLER) {
+			*Status = Injector::HOOK_FINISHED;
+			return Original(SystemInformationClass, SystemInformation, SystemInformationLength, ReturnLength);
+		}
+
 		*Status = Injector::HOOK_FINISHED;
 	}
 
@@ -893,6 +905,7 @@ bool ManualMap(Process::Object& proc, std::string Path) {
 	void* _GetModuleHandleA = kernelbase.GetAddress(oxorany("GetModuleHandleA"));
 	void* _LoadLibraryA = kernelbase.GetAddress(oxorany("LoadLibraryA"));
 	void* _MessageBoxA = user32.GetAddress(oxorany("MessageBoxA"));
+	void* _RtlAddFunctionTable = GetProcAddress(GetModuleHandleA("kernel32.dll"), "RtlAddFunctionTable");
 
 	auto NtHk = Injector::Hook(proc, "NtQuerySystemInformation", NtQuerySystemInformation, {
 		(void*)(loader.Start + ofssetss_new::set_insert),
@@ -902,8 +915,10 @@ bool ManualMap(Process::Object& proc, std::string Path) {
 		_GetModuleHandleA,
 		_LoadLibraryA,
 		_MessageBoxA,
-		(void*)(loader.Start + ofssetss_new::Bitmap)
+		(void*)(loader.Start + ofssetss_new::Bitmap),
+		_RtlAddFunctionTable  // <- required for SEH
 		});
+
 
 	Injector::HOOK_STATUS Status = (Injector::HOOK_STATUS)-1;
 	Injector::HOOK_STATUS PrevStatus = Status;
