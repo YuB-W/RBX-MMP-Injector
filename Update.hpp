@@ -14,8 +14,8 @@ namespace ofssetss_new
 
 
     // whitelist stuff // need to update every roblox update!!!!!!
-    static constexpr auto set_insert = 0xD78CD0;  
-    static constexpr auto whitelist_page = 0x2830c8;  
-    static constexpr auto Bitmap = 0x29aa80; 
+   static constexpr auto set_insert = 0xE15010;  
+   static constexpr auto whitelist_page = 0x2730A8;  
+   static constexpr auto Bitmap = 0x2750F8; 
 
 }
