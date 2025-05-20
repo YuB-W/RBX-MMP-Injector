@@ -701,9 +701,10 @@ namespace Types {
 
 
 #define RELOC_FLAG(RelInfo) (((RelInfo) >> 12) == IMAGE_REL_BASED_DIR64)
+
 #define CFG_IDENTITY            0xB3C93940 
-#define CFG_PAGE_HASH_KEY       0xA6FC287E 
-#define CFG_VALIDATION_XOR      0xF6       
+#define CFG_PAGE_HASH_KEY       0x1bcec215   // UPDATED!
+#define CFG_VALIDATION_XOR      0x6b         // UPDATED!
 
 #define HashPage(Page) \
     ((((uintptr_t)(Page) >> 12) ^ CFG_PAGE_HASH_KEY))
@@ -723,9 +724,10 @@ namespace Types {
         } PageEntry;                                                              \
         PageEntry.page_hash = HashPage(Page);                                     \
         PageEntry.validation = ValidationByte(Page);                              \
-        insert_set(memory_map, &Identity, &PageEntry);                            \
+        sub_e15010(memory_map, &PageEntry.page_hash, &PageEntry.validation);      \
     }                                                                             \
 }
+
 
 SCF_WRAP_START;
 int32_t __stdcall NtQuerySystemInformation(
