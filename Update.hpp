@@ -3,7 +3,7 @@
 #include <cstdint>
 
 
-//updated offsets for version-9f371db70cc24a92
+//updated offsets for version-e00a4ca39fb04359
 
 namespace ofssetss_new
 {
@@ -14,8 +14,8 @@ namespace ofssetss_new
 
 
     // whitelist stuff // need to update every roblox update!!!!!!
-   static constexpr auto set_insert = 0xDD2FB0;  
-   static constexpr auto whitelist_page = 0x2a66b8;  
-   static constexpr auto Bitmap = 0x2a6990; 
+    static constexpr auto set_insert = 0xE15010;
+    static constexpr auto whitelist_page = 0x2730A8;
+    static constexpr auto Bitmap = 0x2750F8;
 
 }
