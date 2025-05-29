@@ -1,6 +1,6 @@
 # YuB-X MMP Injector with CFG Bypass
 
-# Version-e00a4ca39fb04359
+# Version-1ae53095a115415d
 
 > 🚀 injector with full Control Flow Guard (CFG) bypass  
 ---
