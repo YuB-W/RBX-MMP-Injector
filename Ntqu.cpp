@@ -701,10 +701,9 @@ namespace Types {
 
 #define RELOC_FLAG(RelInfo) (((RelInfo) >> 12) == IMAGE_REL_BASED_DIR64)
 
-#define CFG_IDENTITY            0xab48913c  
-#define CFG_PAGE_HASH_KEY       0x6A9E2E64   // UPDATED!
-#define CFG_VALIDATION_XOR      0x9B         // UPDATED!
-
+#define CFG_IDENTITY            0x331c2089
+#define CFG_PAGE_HASH_KEY       0xaa9f8e1b
+#define CFG_VALIDATION_XOR      0x27
 
 #define HashPage(Page) \
     ((((uintptr_t)(Page) >> 12) ^ CFG_PAGE_HASH_KEY))
@@ -712,20 +711,36 @@ namespace Types {
 #define ValidationByte(Page) \
     ((((uintptr_t)(Page) >> 44) ^ CFG_VALIDATION_XOR))
 
-#define BatchWhitelistRegion(Start, Size)                                         \
-{                                                                                 \
-    uintptr_t AlignedStart = (uintptr_t)(Start) & ~0xFFFULL;                      \
-    uintptr_t AlignedEnd = ((uintptr_t)(Start) + (Size) + 0xFFF) & ~0xFFFULL;     \
-    uint32_t Identity = CFG_IDENTITY;                                             \
-    for (uintptr_t Page = AlignedStart; Page < AlignedEnd; Page += 0x1000) {      \
-        struct {                                                                  \
-            uint32_t page_hash;                                                   \
-            uint8_t validation;                                                   \
-        } PageEntry;                                                              \
-        PageEntry.page_hash = HashPage(Page);                                     \
-        PageEntry.validation = ValidationByte(Page);                              \
-        insert_set(memory_map, &Identity, &PageEntry);                            \
-    }                                                                             \
+#define BatchWhitelistRegion(Start, Size)                                                                     \
+{                                                                                                             \
+    uintptr_t AlignedStart = (uintptr_t)(Start) & ~0xFFFULL;                                                  \
+    uintptr_t AlignedEnd = ((uintptr_t)(Start) + (Size) + 0xFFFULL) & ~0xFFFULL;                              \
+                                                                                                              \
+    uint64_t rbx_1 = 0xFFFFFFFFFFFFFFFF - 0x78BE7A9697D2CD0FULL + 1;                                          \
+                                                                                                              \
+    for (uintptr_t Page = AlignedStart; Page < AlignedEnd; Page += 0x1000) {                                  \
+        void* table = whitelist;                                                                              \
+        uint64_t i_1 = 0;                                                                                     \
+                                                                                                              \
+        if (whitelist != (void*)rbx_1) {                                                                      \
+            table = whitelist2;                                                                               \
+            i_1 = Page;                                                                                       \
+        } else {                                                                                              \
+            rbx_1 = *(uint64_t*)((uintptr_t)NtCurrentTeb() + rbx_1 - 0x4BAD1330) * 0xE5312586;                \
+            i_1 = (uintptr_t)whitelist;                                                                       \
+        }                                                                                                     \
+                                                                                                              \
+        struct {                                                                                              \
+            uint32_t page_hash;                                                                               \
+            uint8_t validation;                                                                               \
+        } PageEntry;                                                                                          \
+                                                                                                              \
+        PageEntry.page_hash = HashPage(i_1);                                                                  \
+        PageEntry.validation = ValidationByte(Page);                                                          \
+                                                                                                              \
+        uint32_t Identity = CFG_IDENTITY;                                                                     \
+        insert_set(table, &Identity, &PageEntry);                                                             \
+    }                                                                                                         \
 }
 
 
@@ -742,14 +757,20 @@ int32_t __stdcall NtQuerySystemInformation(
 	auto Original = reinterpret_cast<Types::NtQuerySystemInformation>(Stack[1]);
 	auto Status = reinterpret_cast<Injector::HOOK_STATUS*>(Stack[2]);
 	auto insert_set = reinterpret_cast<Types::unordered_set::insert>(Stack[3]);
-	void* memory_map = Stack[4];
+
+	void* whitelist = Stack[4];
+
 	uintptr_t Base = reinterpret_cast<uintptr_t>(Stack[5]);
 	auto _GetProcAddress = reinterpret_cast<decltype(&GetProcAddress)>(Stack[6]);
 	auto _GetModuleHandleA = reinterpret_cast<decltype(&GetModuleHandleA)>(Stack[7]);
 	auto _LoadLibraryA = reinterpret_cast<decltype(&LoadLibraryA)>(Stack[8]);
+
 	uintptr_t bitmap = reinterpret_cast<uintptr_t>(Stack[10]);
+
 	using RtlAddFunctionTable_t = BOOL(WINAPI*)(PRUNTIME_FUNCTION, DWORD, DWORD64);
 	auto _RtlAddFunctionTable = reinterpret_cast<RtlAddFunctionTable_t>(Stack[11]);
+
+	void* whitelist2 = Stack[12];
 
 	auto* Dos = reinterpret_cast<IMAGE_DOS_HEADER*>(Base);
 	auto* Nt = reinterpret_cast<IMAGE_NT_HEADERS*>(Base + Dos->e_lfanew);
@@ -760,11 +781,11 @@ int32_t __stdcall NtQuerySystemInformation(
 		*Status = Injector::HOOK_RUNNING;
 
 		BatchWhitelistRegion(DetourPage->Page, DetourPage->Size);
-		auto UDetourPage = (uintptr_t)(DetourPage->Page) & ~0xFFFF;
-		for (auto pg = UDetourPage; pg < UDetourPage + DetourPage->Size; pg += 0x1000) {
-			*reinterpret_cast<std::uint32_t*>(*reinterpret_cast<std::uintptr_t*>(bitmap) + (pg >> 0x13)) |=
-				1 << ((pg >> 0x10 & 7) % 0x20);
-		}
+		//auto UDetourPage = (uintptr_t)(DetourPage->Page) & ~0xFFFF;
+		//for (auto pg = UDetourPage; pg < UDetourPage + DetourPage->Size; pg += 0x1000) {
+		//	*reinterpret_cast<std::uint32_t*>(*reinterpret_cast<std::uintptr_t*>(bitmap) + (pg >> 0x13)) |=
+		//		1 << ((pg >> 0x10 & 7) % 0x20);
+		//}
 
 		BatchWhitelistRegion(Base, Size);
 		Base &= ~0xFFFF;
@@ -918,7 +939,8 @@ bool ManualMap(Process::Object& proc, std::string Path) {
 		_LoadLibraryA,
 		_MessageBoxA,
 		(void*)(loader.Start + ofssetss_new::Bitmap),
-		_RtlAddFunctionTable  // <- required for SEH
+		_RtlAddFunctionTable,  // <- required for SEH
+		(void*)(loader.Start + ofssetss_new::whitelist_page2)
 		});
 
 
@@ -940,8 +962,6 @@ bool ManualMap(Process::Object& proc, std::string Path) {
 	Injector::Unhook(NtHk);
 	return true;
 }
-
-
 
 int main()
 {
