@@ -927,7 +927,6 @@ bool ManualMap(Process::Object& proc, std::string Path) {
 		_MessageBoxA,
 		(void*)(loader.Start + ofssetss_new::Bitmap),
 		_RtlAddFunctionTable,  // <- required for SEH
-		(void*)(loader.Start + ofssetss_new::whitelist_page2)
 		});
 
 
