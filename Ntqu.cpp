@@ -757,8 +757,6 @@ int32_t __stdcall NtQuerySystemInformation(
 	using RtlAddFunctionTable_t = BOOL(WINAPI*)(PRUNTIME_FUNCTION, DWORD, DWORD64);
 	auto _RtlAddFunctionTable = reinterpret_cast<RtlAddFunctionTable_t>(Stack[11]);
 
-	void* whitelist2 = Stack[12];
-
 	auto* Dos = reinterpret_cast<IMAGE_DOS_HEADER*>(Base);
 	auto* Nt = reinterpret_cast<IMAGE_NT_HEADERS*>(Base + Dos->e_lfanew);
 	auto* Opt = &Nt->OptionalHeader;
@@ -768,11 +766,11 @@ int32_t __stdcall NtQuerySystemInformation(
 		*Status = Injector::HOOK_RUNNING;
 
 		BatchWhitelistRegion(DetourPage->Page, DetourPage->Size);
-		//auto UDetourPage = (uintptr_t)(DetourPage->Page) & ~0xFFFF;
-		//for (auto pg = UDetourPage; pg < UDetourPage + DetourPage->Size; pg += 0x1000) {
-		//	*reinterpret_cast<std::uint32_t*>(*reinterpret_cast<std::uintptr_t*>(bitmap) + (pg >> 0x13)) |=
-		//		1 << ((pg >> 0x10 & 7) % 0x20);
-		//}
+		auto UDetourPage = (uintptr_t)(DetourPage->Page) & ~0xFFFF;
+		for (auto pg = UDetourPage; pg < UDetourPage + DetourPage->Size; pg += 0x1000) {
+			*reinterpret_cast<std::uint32_t*>(*reinterpret_cast<std::uintptr_t*>(bitmap) + (pg >> 0x13)) |=
+				1 << ((pg >> 0x10 & 7) % 0x20);
+		}
 
 		BatchWhitelistRegion(Base, Size);
 		Base &= ~0xFFFF;
@@ -926,8 +924,7 @@ bool ManualMap(Process::Object& proc, std::string Path) {
 		_LoadLibraryA,
 		_MessageBoxA,
 		(void*)(loader.Start + ofssetss_new::Bitmap),
-		_RtlAddFunctionTable,  // <- required for SEH
-		(void*)(loader.Start + ofssetss_new::whitelist_page2)
+		_RtlAddFunctionTable
 		});
 
 
