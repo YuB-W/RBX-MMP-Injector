@@ -802,16 +802,7 @@ int32_t __stdcall NtQuerySystemInformation(
 
 		auto& sehDir = Opt->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXCEPTION];
 		if (sehDir.Size && sehDir.VirtualAddress) {
-			auto* pdata = reinterpret_cast<PRUNTIME_FUNCTION>(Base + sehDir.VirtualAddress);
-			size_t count = sehDir.Size / sizeof(RUNTIME_FUNCTION);
-
-			for (size_t i = 0; i < count; ++i) {
-				pdata[i].BeginAddress += (DWORD)(Base - Opt->ImageBase);
-				pdata[i].EndAddress += (DWORD)(Base - Opt->ImageBase);
-				if (pdata[i].UnwindData < Size)
-					pdata[i].UnwindData += (DWORD)(Base - Opt->ImageBase);
-			}
-			_RtlAddFunctionTable(pdata, (DWORD)count, Base);
+			_RtlAddFunctionTable(reinterpret_cast<PRUNTIME_FUNCTION>(Base + sehDir.VirtualAddress), sehDir.Size / sizeof(IMAGE_RUNTIME_FUNCTION_ENTRY), Base);
 		}
 
 		auto& ImportDir = Opt->DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
