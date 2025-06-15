@@ -956,6 +956,7 @@ bool ManualMap(Process::Object& proc, std::string Path) { // mmap func
 		if (Status != PrevStatus) {
 			PrevStatus = Status;
 		}
+	switch (Status) {
 		case Injector::HOOK_FINISHED:
 			Done = true;
 			std::cout << COLOR_OK << current_timestamp() << " [!] injection finished" << COLOR_INFO << '\n'; // finished mmap
