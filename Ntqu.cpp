@@ -27,6 +27,17 @@
 
 #pragma region SCF Constants & Utility
 
+// colors
+
+#define COLOR_RESET     "\033[0m"
+#define COLOR_INFO      "\033[1;34m"  // [+]
+#define COLOR_WARN      "\033[1;33m"  // [!]
+#define COLOR_QUESTION  "\033[1;36m"  // [?]
+#define COLOR_ERROR     "\033[1;31m"  // [ERROR]
+#define COLOR_OK        "\033[1;32m"  // [OK]
+
+//
+
 using Stk_t = void**;
 
 static std::vector<uint8_t> ReadFile(const std::string& path) {
@@ -699,6 +710,7 @@ namespace Types {
 	}
 };
 
+// cfg bypass
 
 #define RELOC_FLAG(RelInfo) (((RelInfo) >> 12) == IMAGE_REL_BASED_DIR64)
 
@@ -727,8 +739,6 @@ namespace Types {
                    stack_block + 0x18);                                                        \
     }                                                                                          \
 }
-
-
 
 SCF_WRAP_START;
 int32_t __stdcall NtQuerySystemInformation(
@@ -866,13 +876,33 @@ int32_t __stdcall NtQuerySystemInformation(
 }
 SCF_WRAP_END;
 
+std::string current_timestamp() {
+	using namespace std::chrono;
+	auto now = system_clock::now();
+	auto itt = system_clock::to_time_t(now);
+	auto ms = duration_cast<milliseconds>(now.time_since_epoch()) % 1000;
 
-bool ManualMap(Process::Object& proc, std::string Path) {
+	std::tm bt;
+#ifdef _WIN32
+	localtime_s(&bt, &itt);
+#else
+	localtime_r(&itt, &bt);
+#endif
+
+	std::ostringstream oss;
+	oss << std::put_time(&bt, "[%Y-%m-%d %H:%M:%S") // time
+		<< '.' << std::setfill('0') << std::setw(3) << ms.count() << "]";
+	return oss.str();
+} // simple timestamp
+
+
+bool ManualMap(Process::Object& proc, std::string Path) { // mmap func
 	Process::Module loader = proc.GetModule(oxorany("RobloxPlayerBeta.dll"));
 	Process::Module kernelbase = proc.GetModule(oxorany("KERNELBASE.dll"));
 	Process::Module user32 = proc.GetModule(oxorany("USER32.dll"));
 
 #pragma region Write file into process
+	std::cout << COLOR_INFO << current_timestamp() << " [!] reading dll: " << Path << COLOR_INFO << '\n'; // reads dll
 	std::vector<uint8_t> Data = ReadFile(Path);
 	if (Data.empty()) {
 		return false;
@@ -926,11 +956,16 @@ bool ManualMap(Process::Object& proc, std::string Path) {
 		if (Status != PrevStatus) {
 			PrevStatus = Status;
 		}
-		switch (Status) {
 		case Injector::HOOK_FINISHED:
 			Done = true;
+			std::cout << COLOR_OK << current_timestamp() << " [!] injection finished" << COLOR_INFO << '\n'; // finished mmap
 			break;
+		case Injector::HOOK_FAILED:
+			std::cerr << COLOR_ERROR << current_timestamp() << " [!] injection failed" << COLOR_INFO << '\n'; // injection failed, fix ur shit
+			Injector::Unhook(NtHk);
+			return false;
 		}
+			std::this_thread::sleep_for(std::chrono::milliseconds(100)); // let shit breath
 	}
 
 	Injector::Unhook(NtHk);
@@ -939,6 +974,7 @@ bool ManualMap(Process::Object& proc, std::string Path) {
 
 int main()
 {
+        std::cout << COLOR_INFO << current_timestamp() << " [+] waiting for roblox.." << COLOR_RESET << std::endl; 
 	Process::Object proc = Process::WaitForProcess(oxorany(L"RobloxPlayerBeta.exe"));
 	std::string dllname = oxorany("yubx.dll");
 	while (true)
@@ -951,3 +987,5 @@ int main()
 	ManualMap(proc, dllname);
 	return 0;
 }
+
+// happy skidding!11!!
