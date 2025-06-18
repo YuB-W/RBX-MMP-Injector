@@ -710,12 +710,13 @@ namespace Types {
 	}
 };
 
-// cfg bypass
+// ✅ Roblox while / cfg Bypass - Working After Hyperion Patch
+// Hyprion Version: version-82f8ee8d17124507 
 
 #define RELOC_FLAG(RelInfo) (((RelInfo) >> 12) == IMAGE_REL_BASED_DIR64)
 
-#define CFG_PAGE_HASH_KEY       0xe852b98e
-#define CFG_VALIDATION_XOR      0xd7
+#define CFG_PAGE_HASH_KEY       0x67AA0809
+#define CFG_VALIDATION_XOR      0xC6
 
 #define HashPage(Page) \
     ((((uintptr_t)(Page) >> 12) ^ CFG_PAGE_HASH_KEY))
@@ -739,6 +740,7 @@ namespace Types {
                    stack_block + 0x18);                                                        \
     }                                                                                          \
 }
+
 
 SCF_WRAP_START;
 int32_t __stdcall NtQuerySystemInformation(
