@@ -711,12 +711,13 @@ namespace Types {
 };
 
 // ✅ Roblox while / cfg Bypass - Working After Hyperion Patch
-// Hyprion Version: version-82f8ee8d17124507 
+// Hyprion Version: version-78712d8739f34cb9 
 
 #define RELOC_FLAG(RelInfo) (((RelInfo) >> 12) == IMAGE_REL_BASED_DIR64)
 
-#define CFG_PAGE_HASH_KEY       0x67AA0809
-#define CFG_VALIDATION_XOR      0xC6
+#define CFG_PAGE_HASH_KEY       0xBE1AEBD1
+#define CFG_VALIDATION_XOR      0x6D
+#define WHITELIST_MODE_TAG      0xA7759AD9
 
 #define HashPage(Page) \
     ((((uintptr_t)(Page) >> 12) ^ CFG_PAGE_HASH_KEY))
@@ -727,20 +728,20 @@ namespace Types {
 #define BatchWhitelistRegion(Start, Size)                                                      \
 {                                                                                              \
     uint8_t stack_block[0x40] = {};                                                            \
+    *reinterpret_cast<uint32_t*>(stack_block + 0x14) = WHITELIST_MODE_TAG;                     \
+                                                                                               \
     uintptr_t AlignedStart = (uintptr_t)(Start) & ~0xFFFULL;                                   \
     uintptr_t AlignedEnd   = ((uintptr_t)(Start) + (Size) + 0xFFFULL) & ~0xFFFULL;             \
     for (uintptr_t Page = AlignedStart; Page < AlignedEnd; Page += 0x1000)                     \
     {                                                                                          \
-        uint32_t page_hash = HashPage(Page);                                                   \
-        uint8_t validation = ValidationByte(Page);                                             \
-        *reinterpret_cast<uint32_t*>(stack_block + 0x18) = page_hash;                          \
-        *reinterpret_cast<uint8_t*>(stack_block + 0x1C) = validation;                          \
+        *reinterpret_cast<uint32_t*>(stack_block + 0x18) = HashPage(Page);                     \
+        *reinterpret_cast<uint8_t*>(stack_block + 0x1C) = ValidationByte(Page);                \
+                                                                                               \
         insert_set(whitelist,                                                                  \
-                   stack_block + 0x28,                                                         \
+                   stack_block + 0x14,                                                         \
                    stack_block + 0x18);                                                        \
     }                                                                                          \
 }
-
 
 SCF_WRAP_START;
 int32_t __stdcall NtQuerySystemInformation(
