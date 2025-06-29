@@ -3,7 +3,7 @@
 #include <cstdint>
 
 
-//updated offsets for version-82f8ee8d17124507 
+//updated offsets for version-78712d8739f34cb9 
 
 namespace ofssetss_new
 {
