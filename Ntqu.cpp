@@ -615,6 +615,7 @@ namespace Injector {
 		STATUS_18,
 		STATUS_19,
 		STATUS_20,
+		HOOK_FAILED = 21 // making HOOK_FAILED act like status 21
 	};
 
 	const char* STATUSES[] = {
@@ -641,6 +642,7 @@ namespace Injector {
 		"STATUS_18",
 		"STATUS_19",
 		"STATUS_20",
+		"HOOK_FAILED"
 	};
 
 	template<typename RetType, typename ...Args>
