@@ -714,32 +714,28 @@ namespace Types {
 
 #define RELOC_FLAG(RelInfo) (((RelInfo) >> 12) == IMAGE_REL_BASED_DIR64)
 
-#define CFG_PAGE_HASH_KEY       0xC9E94648
-#define CFG_VALIDATION_XOR      0xD
-#define WHITELIST_MODE_TAG      0xd0698f90
+#define CFG_PAGE_HASH_KEY  0xC9E94648;
+#define CFG_VALIDATION_XOR 0xD;
 
 #define HashPage(Page) \
-    ((((uintptr_t)(Page) >> 12) ^ CFG_PAGE_HASH_KEY))
+    (((uintptr_t)(Page) >> 12) ^ CFG_PAGE_HASH_KEY)
 
 #define ValidationByte(Page) \
-    ((((uintptr_t)(Page) >> 44) ^ CFG_VALIDATION_XOR))
+    (((uintptr_t)(Page) >> 44) ^ CFG_VALIDATION_XOR)
 
-#define BatchWhitelistRegion(Start, Size)                                                      \
-{                                                                                              \
-    uint8_t stack_block[0x40] = {};                                                            \
-    *reinterpret_cast<uint32_t*>(stack_block + 0x14) = WHITELIST_MODE_TAG;                     \
-                                                                                               \
-    uintptr_t AlignedStart = (uintptr_t)(Start) & ~0xFFFULL;                                   \
-    uintptr_t AlignedEnd   = ((uintptr_t)(Start) + (Size) + 0xFFFULL) & ~0xFFFULL;             \
-    for (uintptr_t Page = AlignedStart; Page < AlignedEnd; Page += 0x1000)                     \
-    {                                                                                          \
-        *reinterpret_cast<uint32_t*>(stack_block + 0x18) = HashPage(Page);                     \
-        *reinterpret_cast<uint8_t*>(stack_block + 0x1C) = ValidationByte(Page);                \
-                                                                                               \
-        insert_set(whitelist,                                                                  \
-                   stack_block + 0x14,                                                         \
-                   stack_block + 0x18);                                                        \
-    }                                                                                          \
+#define BatchWhitelistRegion(Start, Size)                                                    \
+{                                                                                            \
+    uintptr_t __wl_start = (uintptr_t)(Start);                                               \
+    uintptr_t __wl_size = (uintptr_t)(Size);                                                 \
+    uintptr_t __wl_aligned_start = __wl_start & ~0xFFFULL;                                   \
+    uintptr_t __wl_aligned_end = (__wl_start + __wl_size + 0xFFFULL) & ~0xFFFULL;            \
+    for (uintptr_t __wl_page = __wl_aligned_start; __wl_page < __wl_aligned_end; __wl_page += 0x1000) \
+    {                                                                                        \
+        uint8_t __wl_stack_block[0x40] = {};                                                 \
+        *reinterpret_cast<uint32_t*>(__wl_stack_block + 0x18) = HashPage(__wl_page);         \
+        *reinterpret_cast<uint8_t*>(__wl_stack_block + 0x1C) = ValidationByte(__wl_page);    \
+        insert_set(whitelist, __wl_stack_block + 0x14, __wl_stack_block + 0x18);             \
+    }                                                                                        \
 }
 
 SCF_WRAP_START;
