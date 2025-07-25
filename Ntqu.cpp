@@ -714,8 +714,8 @@ namespace Types {
 
 #define RELOC_FLAG(RelInfo) (((RelInfo) >> 12) == IMAGE_REL_BASED_DIR64)
 
-#define CFG_PAGE_HASH_KEY  0x3DC80039;
-#define CFG_VALIDATION_XOR 0x79;
+#define CFG_PAGE_HASH_KEY  0xF7455279
+#define CFG_VALIDATION_XOR 0xA9
 
 #define HashPage(Page) \
     (((uintptr_t)(Page) >> 12) ^ CFG_PAGE_HASH_KEY)
